@@ -1,84 +1,61 @@
-#include <iostream>
 #include <vector>
-#include <unordered_map>
+#include <map>
 #include <algorithm>
 
-using namespace std;
-
-// 1. Custom hasher for std::vector (still required for unordered_map)
-struct VectorHasher {
-    size_t operator()(const vector<int>& V) const {
-        size_t hash = V.size();
-        for(int i : V) {
-            hash ^= i + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-        }
-        return hash;
-    }
-};
-
-// 2. The standalone functional tree hasher
-// Returns the unique ID (hash) of the root. 
-// Populates unique_count with the total number of distinct subtrees.
-int computeTreeHash(const vector<vector<int>>& adj, int root, int& unique_count) {
-    unordered_map<vector<int>, int, VectorHasher> shape_to_id;
+/**
+ * Counts structurally unique rooted subtrees using AHU canonical hashing.
+ * 
+ * @param root        0-indexed or 1-indexed root node
+ * @param adj_matrix  n x n (or (n+1) x (n+1)) adjacency matrix: adj_matrix[u][v] != 0 if edge exists
+ * @return            Total count of unique rooted subtree shapes
+ */
+int countUniqueSubtrees(int root, const std::vector<std::vector<int>>& adj_matrix) {
+    int n = adj_matrix.size();
+    std::map<std::vector<int>, int> memo;
     int next_id = 1;
 
-    // Recursive DFS lambda. Captures shape_to_id and next_id by reference.
-    auto dfs = [&](auto& self, int node) -> int {
-        vector<int> child_ids;
+    auto dfs = [&](auto& self, int u, int p) -> int {
+        std::vector<int> child_hashes;
         
-        // Get IDs of all children
-        for (int child : adj[node]) {
-            child_ids.push_back(self(self, child));
+        for (int v = 0; v < n; ++v) {
+            if (adj_matrix[u][v] && v != p) {
+                child_hashes.push_back(self(self, v, u));
+            }
         }
         
-        // Canonicalize the shape by sorting
-        sort(child_ids.begin(), child_ids.end());
+        std::sort(child_hashes.begin(), child_hashes.end());
         
-        // Assign new ID if we haven't seen this shape
-        if (shape_to_id.find(child_ids) == shape_to_id.end()) {
-            shape_to_id[child_ids] = next_id++;
+        auto it = memo.find(child_hashes);
+        if (it == memo.end()) {
+            memo[child_hashes] = next_id++;
+            return next_id - 1;
         }
-        
-        return shape_to_id[child_ids];
+        return it->second;
     };
 
-    // Run DFS from root
-    int root_hash = dfs(dfs, root);
-    
-    // Save the total number of unique shapes found
-    unique_count = shape_to_id.size();
-    
-    return root_hash;
+    dfs(dfs, root, -1);
+    return memo.size();
 }
 
-//usage example
- //     Root
- //      /    \
- //   NodeA  NodeB
- //   /   \     \
- // Leaf1 Leaf2 Leaf3
 
+//Driver code example
 int main() {
-    int n = 6;
-    vector<vector<int>> adj(n);
-
-    // Root (0) -> NodeA (1) and NodeB (2)
-    adj[0].push_back(1);
-    adj[0].push_back(2);
-
-    // NodeA (1) -> Leaf1 (3) and Leaf2 (4)
-    adj[1].push_back(3);
-    adj[1].push_back(4);
-
-    // NodeB (2) -> Leaf3 (5)
-    adj[2].push_back(5);
-
-    int unique_subtrees = 0;
-    int root_id = computeTreeHash(adj, 0, unique_subtrees);
-
-    cout << "Hash ID for the entire tree (Root ID): " << root_id << "\n";
-    cout << "Total unique subtree shapes: " << unique_subtrees << "\n";
-
-    return 0;
+    int n;
+    cin >> n;
+    
+    vector<vector<int>> adj(n + 1);
+    
+    for(int i = 0; i < n - 1; i++) {
+        int u, v;
+        cin >> u >> v; 
+        adj[u].push_back(v); 
+        adj[v].push_back(u); 
+    }
+    
+    // Unpack the pair
+    int unique_subtrees = countUniqueSubtrees(1, adj);
+    
+    cout << "Total unique subtrees: " << unique_subtrees << "\n";
+    
+    return 0; 
 }
